@@ -10,21 +10,21 @@ I worked on motor integration, coding and the electrical connections for the vac
 
 ## Hardware and operation
 
-The Arduino Uno provides control for the robot. Ultrasonic sensing supplies distance information, while an L298 driver is used for motor control; the separate 7 V pump connection is still to be confirmed. The project was programmed using Arduino.
+The Arduino Uno provides control for the robot. Three ultrasonic sensors supply distance information, while an L298 driver controls movement. A 7 V suction/pump motor provides the cleaning mechanism; its electrical control is outside the documented reference firmware. The project was programmed using Arduino.
 
 | Item | Details |
 | --- | --- |
 | Controller | Arduino Uno |
 | Distance sensing | Three HC-SR04 ultrasonic sensors |
 | Motor control | L298; the supplied reference diagram shows an L298N module |
-| Cleaning mechanism | 7 V suction/pump motor; current and driver connection unconfirmed |
+| Cleaning mechanism | 7 V suction/pump motor |
 | Programming | Arduino |
 
 ## New reference firmware
 
-A newly written implementation is available in [firmware/VacuumRobot](firmware/VacuumRobot). It now uses direct L298 control and three ultrasonic sensors. The supplied circuit shows **two drive motors**, while the reported motor count was one. This code implements the two-wheel differential-drive arrangement from the drawing and must not be used on a one-drive-motor platform without adapting the steering logic.
+A newly written implementation is available in [firmware/VacuumRobot](firmware/VacuumRobot). It now uses direct L298 control and three ultrasonic sensors. The firmware adopts the supplied diagram's **two-wheel differential-drive arrangement**, with independent left and right motor control. This is the selected reference design; the original drive-motor count was not independently verified.
 
-The code stops for invalid sensor readings, checks clearance before moving, and uses short pivots toward the clearer side. Pump control is intentionally omitted until its separate driver and current rating are known. The previous Adafruit implementation has been replaced.
+The code stops for invalid sensor readings, checks clearance before moving, and uses short pivots toward the clearer side. The 7 V pump remains outside software control because its driver circuit and current rating are not documented.
 
 This firmware is newly written and has not been tested on the physical robot. Follow the [setup guide](firmware/README.md) before uploading.
 
