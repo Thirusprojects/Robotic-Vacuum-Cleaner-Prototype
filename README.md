@@ -1,48 +1,35 @@
 # Robotic Vacuum Cleaner Prototype
 
-A compact floor-cleaning robot prototype documented through assembly images and Arduino IDE code screenshots. The circular enclosure has front-facing ultrasonic transducers.
+A compact floor-cleaning robot developed around an **Arduino Uno**, **HC-SR04 ultrasonic sensing** and **Adafruit motor control**. The build combines mobile movement with a motor-driven suction/pump mechanism inside a circular enclosure.
 
-**Portfolio:** Thiruppathi P · [Thirusprojects](https://github.com/Thirusprojects)
+![Vacuum robot prototype](media/images/img-3926.jpg)
 
-![Robotic Vacuum Cleaner Prototype — supplied project image](media/images/img-3924.jpg)
+## Hardware and operation
 
-## Project status
+The Arduino Uno provides control for the robot. Ultrasonic sensing supplies distance information, while Adafruit motor control is used for the movement and suction/pump motor arrangement. The project was programmed using Arduino.
 
-Physical prototype images and code screenshots available. No editable firmware or cleaning-performance test was included.
+| Item | Details |
+| --- | --- |
+| Controller | Arduino Uno |
+| Distance sensing | HC-SR04 ultrasonic sensors |
+| Motor control | Adafruit driver; shield revision and channel mapping need confirmation |
+| Cleaning mechanism | Motor-driven suction/pump arrangement |
+| Programming | Arduino |
 
-## Contribution
+## New reference firmware
 
-Personal responsibilities and team contribution are awaiting confirmation.
+A newly written implementation is available in [firmware/VacuumRobot](firmware/VacuumRobot). It assumes two DC drive motors, one front HC-SR04, and an optional suitably rated pump motor on a third driver channel. These are **reference wiring assumptions**, not a reconstruction of the original connections.
 
-## Design and documented features
+The firmware implements distance checks, short turning manoeuvres, a stop command, a retry limit when blocked, and stop-on-sensor-failure behavior. The pump operates only when configured and while the robot is moving forward. It supports selectable Adafruit V1 and V2 libraries.
 
-- Circular enclosure with accessible internal electronics in assembly views.
-- Front-facing ultrasonic sensing hardware.
-- Four Arduino IDE screenshots documenting parts of the software.
+This new firmware has not been tested on the physical robot. It does not establish cleaning efficiency, dust pickup or runtime results. Follow the [setup and validation guide](firmware/README.md) before uploading.
 
-## Image gallery
+## Assembly views
 
-- [Project image 1](media/images/img-3924.jpg)
-- [Project image 2](media/images/img-3925.jpg)
-- [Project image 3](media/images/img-3926.jpg)
+![Internal assembly view](media/images/img-3924.jpg)
 
-## Documents and design files
+![Additional assembly view](media/images/img-3925.jpg)
 
-- [screenshot-2024-03-12-at-6-31-52-pm.jpg](docs/code-screenshots/screenshot-2024-03-12-at-6-31-52-pm.jpg)
-- [screenshot-2024-03-12-at-6-32-04-pm.jpg](docs/code-screenshots/screenshot-2024-03-12-at-6-32-04-pm.jpg)
-- [screenshot-2024-03-12-at-6-32-25-pm.jpg](docs/code-screenshots/screenshot-2024-03-12-at-6-32-25-pm.jpg)
-- [screenshot-2024-03-12-at-6-32-30-pm.jpg](docs/code-screenshots/screenshot-2024-03-12-at-6-32-30-pm.jpg)
+## Earlier code references
 
-## Evidence and limitations
-
-Screenshots are source evidence, not a complete buildable firmware package. Suction performance, debris pickup, autonomous navigation and runtime remain unverified. No reconstructed or invented firmware is included.
-
-## Details to complete
-
-Confirm your role, controller, motor driver, suction mechanism, working functions, and whether the original Arduino sketch is available.
-
-## File provenance
-
-See [asset inventory](docs/ASSETS.md) for the mapping to supplied filenames. JPEG and MP4 exports are provided for browser access. Original presentation, PDF and CAD contents are retained where supplied.
-
-This repository documents project materials supplied by the portfolio owner. Team work and third-party design contributions should be credited as their roles are confirmed.
+The [original code screenshots](docs/code-screenshots) are retained separately. They show a serial-command program using direct motor-control pins, so the new Adafruit-based implementation is not presented as a copy of that program.
