@@ -2,9 +2,9 @@
 
 Newly written reference firmware for the reported Arduino Uno, L298 driver and three HC-SR04 sensors. This replaces the earlier Adafruit-based implementation. It is not original project code and has not been tested on the physical robot.
 
-## Motor-count discrepancy
+## Selected reference configuration
 
-The [supplied circuit](../media/images/vacuum-circuit-reference.jpg) shows **two geared drive motors** connected to the two L298N bridges. The contributor's latest message says **one drive motor**. This implementation follows the diagram's two-motor differential-drive arrangement. If the robot truly has one drive motor, its steering mechanism must be identified and the code adapted before use. `WIRING_CONFIRMED` remains false by default.
+The implementation adopts **two geared drive motors**, one per wheel, connected to the two L298N bridges as shown in the [supplied circuit](../media/images/vacuum-circuit-reference.jpg). Independent wheel control enables the turning routine. This is the chosen reference design, not confirmation of the original motor count. A single-drive-motor chassis needs a different steering implementation. `WIRING_CONFIRMED` remains false until the physical build is checked against this configuration.
 
 The reported pump is **7 V**. Its current, driver and wiring are unknown, and the circuit drawing does not show it. **No pump output is implemented.** The two L298 bridges in this design are already assigned to the wheels. A separate appropriately rated switching stage would be needed to control an additional pump; do not attach it to an Arduino GPIO.
 
@@ -27,7 +27,7 @@ A0–A5 are used as digital pins. Connect sensor supplies to regulated 5 V and c
 ## Build and first checks
 
 1. Open `VacuumRobot/VacuumRobot.ino` and select **Arduino Uno**. No Adafruit or other third-party library is needed.
-2. Resolve the one-versus-two-motor discrepancy, verify wiring, then set `WIRING_CONFIRMED = true` in `Config.h`.
+2. Check that the build has independent left/right drive motors and matches the pin table, then set `WIRING_CONFIRMED = true` in `Config.h`.
 3. Test wheel direction with wheels raised; adjust `INVERT_LEFT` and `INVERT_RIGHT` if needed. Keep the pump independently disconnected during drive tests.
 4. Open Serial Monitor at **9600 baud**. `g` starts scanning and autonomous movement; `x` or `s` stops; `d` prints the last left/front/right readings. Startup is stopped.
 5. Test each sensor, blocked paths and stop commands at low speed in a level enclosed area. Tune distances, speed and pivot duration for the chassis.
