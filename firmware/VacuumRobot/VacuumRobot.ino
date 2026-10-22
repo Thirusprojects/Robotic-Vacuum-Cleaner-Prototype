@@ -1,167 +1,138 @@
-/*
- * Newly written reference firmware, October 2026; not original project code.
- * Uno + Adafruit shield + two DC drive motors + one front HC-SR04.
- * Optional suitably rated DC suction/pump motor on a third shield channel.
- * Pin assignments, motor count and shield revision require verification.
+/* Newly written reference firmware. Uno, L298, TWO drive motors, 3 HC-SR04.
+ * Not original project code. Verify motor count and Config.h before use.
+ * The 7 V pump is not controlled by this sketch: its driver is unconfirmed.
  */
 #include <Arduino.h>
 #include "Config.h"
-#if MOTOR_SHIELD_VERSION == 1
-#include <AFMotor.h>
-AF_DCMotor leftMotor(LEFT_CHANNEL);
-AF_DCMotor rightMotor(RIGHT_CHANNEL);
-AF_DCMotor pumpMotor(PUMP_CHANNEL);
-#elif MOTOR_SHIELD_VERSION == 2
-#include <Wire.h>
-#include <Adafruit_MotorShield.h>
-Adafruit_MotorShield shield;
-Adafruit_DCMotor *leftMotor = shield.getMotor(LEFT_CHANNEL);
-Adafruit_DCMotor *rightMotor = shield.getMotor(RIGHT_CHANNEL);
-Adafruit_DCMotor *pumpMotor = shield.getMotor(PUMP_CHANNEL);
-#else
-#error "MOTOR_SHIELD_VERSION must be 1 or 2"
-#endif
-
-enum class State : uint8_t { STOPPED, SETTLING, CRUISING, TURNING, FAULT };
+enum class State : uint8_t { STOPPED, CHECKING, CRUISING, TURNING, FAULT };
 State state = State::STOPPED;
 bool ready = false;
-bool turnRight = true;
+int ranges[3] = {-1, -1, -1};
+unsigned long measuredAt[3] = {0, 0, 0};
+bool measured[3] = {false, false, false};
+uint8_t nextSensor = 0;
 uint8_t turnAttempts = 0;
-uint8_t clearSamples = 0;
-int distanceCm = -1;
-unsigned long lastSample = 0;
-unsigned long stateStarted = 0;
+unsigned long lastPing = 0;
+unsigned long turnStarted = 0;
 
-void setMotor(uint8_t index, int demand) {
+void motor(uint8_t enable, uint8_t in1, uint8_t in2, int demand) {
   demand = constrain(demand, -255, 255);
-  const uint8_t speed = static_cast<uint8_t>(demand < 0 ? -demand : demand);
-  const uint8_t direction = demand > 0 ? FORWARD : demand < 0 ? BACKWARD : RELEASE;
-#if MOTOR_SHIELD_VERSION == 1
-  AF_DCMotor *motor = index == 0 ? &leftMotor : index == 1 ? &rightMotor : &pumpMotor;
-#else
-  Adafruit_DCMotor *motor = index == 0 ? leftMotor : index == 1 ? rightMotor : pumpMotor;
-#endif
-  motor->setSpeed(speed);
-  motor->run(direction);
+  analogWrite(enable, 0); // Disable bridge while changing direction.
+  digitalWrite(in1, demand > 0 ? HIGH : LOW);
+  digitalWrite(in2, demand < 0 ? HIGH : LOW);
+  analogWrite(enable, demand < 0 ? -demand : demand);
 }
-
 void drive(int left, int right) {
-  setMotor(0, INVERT_LEFT ? -left : left);
-  setMotor(1, INVERT_RIGHT ? -right : right);
-}
-
-void stopOutputs() {
   if (!ready) return;
-  drive(0, 0);
-  setMotor(2, 0);
+  motor(LEFT_ENABLE, LEFT_IN1, LEFT_IN2, INVERT_LEFT ? -left : left);
+  motor(RIGHT_ENABLE, RIGHT_IN1, RIGHT_IN2, INVERT_RIGHT ? -right : right);
 }
-
-void changeState(State next) {
-  state = next;
-  stateStarted = millis();
-}
-
 void stopRobot(bool fault) {
-  stopOutputs();
-  changeState(fault ? State::FAULT : State::STOPPED);
-  clearSamples = 0;
-  turnAttempts = 0;
-  Serial.println(fault ? F("FAULT: outputs off. Inspect robot; g retries.") : F("Stopped."));
+  drive(0, 0);
+  state = fault ? State::FAULT : State::STOPPED;
+  Serial.println(fault ? F("FAULT: stopped; inspect before g retry.") : F("Stopped."));
 }
-
-int readDistanceCm() {
-  digitalWrite(TRIGGER_PIN, LOW);
+void resetScan() {
+  for (uint8_t i = 0; i < 3; ++i) { measured[i] = false; ranges[i] = -1; }
+  nextSensor = 0;
+  lastPing = millis();
+}
+int readDistance(uint8_t index) {
+  digitalWrite(TRIGGER_PINS[index], LOW);
   delayMicroseconds(2);
-  digitalWrite(TRIGGER_PIN, HIGH);
+  digitalWrite(TRIGGER_PINS[index], HIGH);
   delayMicroseconds(10);
-  digitalWrite(TRIGGER_PIN, LOW);
-  const unsigned long echo = pulseIn(ECHO_PIN, HIGH, ECHO_TIMEOUT_US);
+  digitalWrite(TRIGGER_PINS[index], LOW);
+  unsigned long echo = pulseIn(ECHO_PINS[index], HIGH, ECHO_TIMEOUT_US);
   if (!echo) return -1;
-  const int cm = static_cast<int>(echo / 58UL);
+  int cm = echo / 58UL;
   return cm >= 2 && cm <= 400 ? cm : -1;
 }
-
-void handleCommand(char c) {
-  if (c == '\n' || c == '\r' || c == ' ') return;
-  if (c == 'x' || c == 's') { stopRobot(false); return; }
-  if (!ready) { Serial.println(F("Verify Config.h before enabling motor outputs.")); return; }
-  if (c == 'g') {
-    stopOutputs();
-    distanceCm = -1;
-    clearSamples = 0;
-    turnAttempts = 0;
-    lastSample = millis() - SAMPLE_MS;
-    changeState(State::SETTLING);
-    Serial.println(F("Started; waiting for range checks."));
-  } else if (c == 'd') {
-    Serial.print(F("Last distance cm (-1 invalid): "));
-    Serial.println(distanceCm);
-  } else Serial.println(F("Commands: g start, x stop, d last distance."));
+bool allFresh() {
+  for (uint8_t i = 0; i < 3; ++i)
+    if (!measured[i] || millis() - measuredAt[i] > MAX_READING_AGE_MS) return false;
+  return true;
 }
-
+void handleCommand(char c) {
+  if (c == '\r' || c == '\n' || c == ' ') return;
+  if (c == 'x' || c == 's') { stopRobot(false); return; }
+  if (!ready) { Serial.println(F("Verify wiring and TWO drive motors in Config.h.")); return; }
+  if (c == 'g') {
+    drive(0, 0);
+    resetScan();
+    turnAttempts = 0;
+    state = State::CHECKING;
+  } else if (c == 'd') {
+    Serial.print(F("Last cm L/F/R (-1 invalid): "));
+    for (uint8_t i = 0; i < 3; ++i) { Serial.print(ranges[i]); Serial.print(' '); }
+    Serial.println();
+  }
+}
 void setup() {
   Serial.begin(9600);
-  pinMode(TRIGGER_PIN, OUTPUT);
-  pinMode(ECHO_PIN, INPUT);
-  digitalWrite(TRIGGER_PIN, LOW);
+  // Establish disabled L298 outputs even while configuration remains locked.
+  const uint8_t pins[] = {LEFT_ENABLE, RIGHT_ENABLE, LEFT_IN1, LEFT_IN2, RIGHT_IN1, RIGHT_IN2};
+  for (uint8_t p : pins) { digitalWrite(p, LOW); pinMode(p, OUTPUT); }
+  for (uint8_t i = 0; i < 3; ++i) {
+    pinMode(TRIGGER_PINS[i], OUTPUT);
+    digitalWrite(TRIGGER_PINS[i], LOW);
+    pinMode(ECHO_PINS[i], INPUT);
+  }
   if (!WIRING_CONFIRMED) {
-    Serial.println(F("Configuration lock active. Verify wiring and shield version."));
+    Serial.println(F("Configuration locked. Confirm pin map and two-wheel drive."));
     return;
   }
-#if MOTOR_SHIELD_VERSION == 2
-  if (!shield.begin()) {
-    Serial.println(F("Motor shield not detected; outputs disabled."));
-    return;
-  }
-#endif
   ready = true;
   stopRobot(false);
-  Serial.println(F("Ready. g=start, x=stop. Pump follows ENABLE_PUMP in Config.h."));
+  Serial.println(F("g start, x stop, d last ranges. No pump control."));
 }
-
 void loop() {
   while (Serial.available()) handleCommand(static_cast<char>(Serial.read()));
   if (!ready || state == State::STOPPED || state == State::FAULT) return;
-
-  const unsigned long now = millis();
-  if (now - lastSample >= SAMPLE_MS) {
-    lastSample = now;
-    distanceCm = readDistanceCm();
-    // Timeouts, invalid distances and dangerously close objects stop all outputs.
-    if (distanceCm < TOO_CLOSE_CM) { stopRobot(true); return; }
-    if (distanceCm >= CLEAR_CM) {
-      if (clearSamples < 2) ++clearSamples;
-    } else clearSamples = 0;
-    if (state == State::CRUISING && distanceCm <= OBSTACLE_CM) {
-      stopOutputs();
-      turnRight = !turnRight;
-      turnAttempts = 0;
-      changeState(State::SETTLING);
-      return;
-    }
+  // Sequential pings reduce cross-talk. One sensor every 70 ms, each about 210 ms.
+  if (millis() - lastPing >= PING_INTERVAL_MS) {
+    lastPing = millis();
+    const uint8_t i = nextSensor;
+    ranges[i] = readDistance(i);
+    measuredAt[i] = millis();
+    measured[i] = true;
+    nextSensor = (i + 1) % 3;
+    if (ranges[i] < TOO_CLOSE_CM) { stopRobot(true); return; } // Includes timeout.
   }
-
   if (state == State::TURNING) {
-    if (millis() - stateStarted >= TURN_MS) {
-      stopOutputs();
-      clearSamples = 0;
-      changeState(State::SETTLING);
+    if (!allFresh()) { stopRobot(true); return; }
+    if (millis() - turnStarted >= TURN_MS) {
+      drive(0, 0);
+      resetScan();
+      state = State::CHECKING;
     }
     return;
   }
-  if (state != State::SETTLING || millis() - stateStarted < SETTLE_MS) return;
-
-  if (clearSamples >= 2) {
-    drive(DRIVE_PWM, DRIVE_PWM);
-    setMotor(2, ENABLE_PUMP ? PUMP_PWM : 0);
-    turnAttempts = 0;
-    changeState(State::CRUISING);
-  } else if (distanceCm >= TOO_CLOSE_CM && distanceCm <= OBSTACLE_CM) {
-    if (turnAttempts >= MAX_TURN_ATTEMPTS) { stopRobot(true); return; }
-    ++turnAttempts;
-    setMotor(2, 0);
-    drive(turnRight ? TURN_PWM : -TURN_PWM, turnRight ? -TURN_PWM : TURN_PWM);
-    changeState(State::TURNING);
+  if (!allFresh()) {
+    if (state == State::CRUISING) stopRobot(true);
+    return;
   }
-  // In the threshold gap, stay stopped until distance is clearly free or blocked.
+  const bool blocked = ranges[1] <= FRONT_BLOCKED_CM ||
+                       ranges[0] <= SIDE_BLOCKED_CM || ranges[2] <= SIDE_BLOCKED_CM;
+  if (state == State::CRUISING) {
+    if (blocked) { drive(0, 0); resetScan(); state = State::CHECKING; }
+    return;
+  }
+  if (ranges[1] >= FRONT_CLEAR_CM && ranges[0] >= SIDE_CLEAR_CM && ranges[2] >= SIDE_CLEAR_CM) {
+    drive(DRIVE_PWM, DRIVE_PWM);
+    turnAttempts = 0;
+    state = State::CRUISING;
+  } else if (blocked) {
+    const bool leftClear = ranges[0] >= TURN_CLEAR_CM;
+    const bool rightClear = ranges[2] >= TURN_CLEAR_CM;
+    if ((!leftClear && !rightClear) || turnAttempts >= MAX_TURN_ATTEMPTS) {
+      stopRobot(true); return;
+    }
+    ++turnAttempts;
+    const bool turnLeft = leftClear && (!rightClear || ranges[0] >= ranges[2]);
+    drive(turnLeft ? -TURN_PWM : TURN_PWM, turnLeft ? TURN_PWM : -TURN_PWM);
+    turnStarted = millis();
+    state = State::TURNING;
+  }
+  // Between clear/blocked thresholds, remain stopped while scanning.
 }

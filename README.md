@@ -1,28 +1,38 @@
 # Robotic Vacuum Cleaner Prototype
 
-A compact floor-cleaning robot developed around an **Arduino Uno**, **HC-SR04 ultrasonic sensing** and **Adafruit motor control**. The build combines mobile movement with a motor-driven suction/pump mechanism inside a circular enclosure.
+A compact floor-cleaning robot developed around an **Arduino Uno**, **HC-SR04 ultrasonic sensing** and an **L298 motor driver**. The build combines mobile movement with a motor-driven suction/pump mechanism inside a circular enclosure.
 
 ![Vacuum robot prototype](media/images/img-3926.jpg)
 
+## My contribution — Semester 6
+
+I worked on motor integration, coding and the electrical connections for the vacuum robot.
+
 ## Hardware and operation
 
-The Arduino Uno provides control for the robot. Ultrasonic sensing supplies distance information, while Adafruit motor control is used for the movement and suction/pump motor arrangement. The project was programmed using Arduino.
+The Arduino Uno provides control for the robot. Ultrasonic sensing supplies distance information, while an L298 driver is used for motor control; the separate 7 V pump connection is still to be confirmed. The project was programmed using Arduino.
 
 | Item | Details |
 | --- | --- |
 | Controller | Arduino Uno |
-| Distance sensing | HC-SR04 ultrasonic sensors |
-| Motor control | Adafruit driver; shield revision and channel mapping need confirmation |
-| Cleaning mechanism | Motor-driven suction/pump arrangement |
+| Distance sensing | Three HC-SR04 ultrasonic sensors |
+| Motor control | L298; the supplied reference diagram shows an L298N module |
+| Cleaning mechanism | 7 V suction/pump motor; current and driver connection unconfirmed |
 | Programming | Arduino |
 
 ## New reference firmware
 
-A newly written implementation is available in [firmware/VacuumRobot](firmware/VacuumRobot). It assumes two DC drive motors, one front HC-SR04, and an optional suitably rated pump motor on a third driver channel. These are **reference wiring assumptions**, not a reconstruction of the original connections.
+A newly written implementation is available in [firmware/VacuumRobot](firmware/VacuumRobot). It now uses direct L298 control and three ultrasonic sensors. The supplied circuit shows **two drive motors**, while the reported motor count was one. This code implements the two-wheel differential-drive arrangement from the drawing and must not be used on a one-drive-motor platform without adapting the steering logic.
 
-The firmware implements distance checks, short turning manoeuvres, a stop command, a retry limit when blocked, and stop-on-sensor-failure behavior. The pump operates only when configured and while the robot is moving forward. It supports selectable Adafruit V1 and V2 libraries.
+The code stops for invalid sensor readings, checks clearance before moving, and uses short pivots toward the clearer side. Pump control is intentionally omitted until its separate driver and current rating are known. The previous Adafruit implementation has been replaced.
 
-This new firmware has not been tested on the physical robot. It does not establish cleaning efficiency, dust pickup or runtime results. Follow the [setup and validation guide](firmware/README.md) before uploading.
+This firmware is newly written and has not been tested on the physical robot. Follow the [setup guide](firmware/README.md) before uploading.
+
+## Circuit reference
+
+![Supplied vacuum robot circuit](media/images/vacuum-circuit-reference.jpg)
+
+The reference shows an Uno, three HC-SR04 sensors, an L298N and two geared drive motors. It does not show the suction pump circuit. The drawing's generic supply labels are not confirmed project battery specifications.
 
 ## Assembly views
 
@@ -32,4 +42,4 @@ This new firmware has not been tested on the physical robot. It does not establi
 
 ## Earlier code references
 
-The [original code screenshots](docs/code-screenshots) are retained separately. They show a serial-command program using direct motor-control pins, so the new Adafruit-based implementation is not presented as a copy of that program.
+The [original code screenshots](docs/code-screenshots) are retained separately. They show a serial-command program using direct motor-control pins, so the new three-sensor L298 implementation is not presented as a copy of that program.

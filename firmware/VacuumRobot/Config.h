@@ -1,33 +1,30 @@
 #pragma once
 #include <Arduino.h>
-
-// Choose the library for your ACTUAL shield: 1=AFMotor (V1), 2=MotorShield V2.
-#ifndef MOTOR_SHIELD_VERSION
-#define MOTOR_SHIELD_VERSION 1
-#endif
-// These pins/channels are proposed, not confirmed original wiring.
+// Proposed pins, not a verified transcription of the small reference drawing.
+// Reference drawing has TWO drive motors; user's reported count needs resolving.
 constexpr bool WIRING_CONFIRMED = false;
-constexpr bool ENABLE_PUMP = false; // Enable only after checking voltage/current.
-constexpr uint8_t LEFT_CHANNEL = 1;
-constexpr uint8_t RIGHT_CHANNEL = 2;
-constexpr uint8_t PUMP_CHANNEL = 3;
+constexpr uint8_t LEFT_ENABLE = 5;  // L298 ENA, remove its enable jumper for PWM
+constexpr uint8_t LEFT_IN1 = 7;
+constexpr uint8_t LEFT_IN2 = 8;
+constexpr uint8_t RIGHT_ENABLE = 6; // L298 ENB, remove its enable jumper for PWM
+constexpr uint8_t RIGHT_IN1 = 9;
+constexpr uint8_t RIGHT_IN2 = 10;
 constexpr bool INVERT_LEFT = false;
 constexpr bool INVERT_RIGHT = false;
-constexpr uint8_t TRIGGER_PIN = A0;
-constexpr uint8_t ECHO_PIN = A1;
+// Sensor order: left, front, right. A0-A5 used as digital pins.
+constexpr uint8_t TRIGGER_PINS[3] = {A0, A2, A4};
+constexpr uint8_t ECHO_PINS[3] = {A1, A3, A5};
 constexpr uint8_t DRIVE_PWM = 110;
 constexpr uint8_t TURN_PWM = 100;
-constexpr uint8_t PUMP_PWM = 200;
-constexpr uint16_t OBSTACLE_CM = 25;
-constexpr uint16_t CLEAR_CM = 30;
-constexpr uint16_t TOO_CLOSE_CM = 6;
-constexpr unsigned long SAMPLE_MS = 70UL;
-constexpr unsigned long SETTLE_MS = 180UL;
-constexpr unsigned long TURN_MS = 350UL;
-constexpr unsigned long ECHO_TIMEOUT_US = 25000UL;
+constexpr int FRONT_BLOCKED_CM = 25;
+constexpr int FRONT_CLEAR_CM = 30;
+constexpr int SIDE_BLOCKED_CM = 12;
+constexpr int SIDE_CLEAR_CM = 15;
+constexpr int TURN_CLEAR_CM = 25;
+constexpr int TOO_CLOSE_CM = 6;
+constexpr unsigned long PING_INTERVAL_MS = 70;
+constexpr unsigned long MAX_READING_AGE_MS = 350;
+constexpr unsigned long ECHO_TIMEOUT_US = 25000;
+constexpr unsigned long TURN_MS = 250;
 constexpr uint8_t MAX_TURN_ATTEMPTS = 6;
-static_assert(LEFT_CHANNEL >= 1 && LEFT_CHANNEL <= 4, "Invalid left channel");
-static_assert(RIGHT_CHANNEL >= 1 && RIGHT_CHANNEL <= 4, "Invalid right channel");
-static_assert(PUMP_CHANNEL >= 1 && PUMP_CHANNEL <= 4, "Invalid pump channel");
-static_assert(LEFT_CHANNEL != RIGHT_CHANNEL && LEFT_CHANNEL != PUMP_CHANNEL &&
-              RIGHT_CHANNEL != PUMP_CHANNEL, "Motor channels must be distinct");
+// No pump output: 7 V pump driver/current and wiring are not confirmed.
